@@ -1,0 +1,28 @@
+[package]
+name = "e02_transparent_guild_sharding"
+version = "0.1.0"
+authors = ["my name <my@email.address>"]
+edition = "2018"
+
+[dependencies]
+tokio = { version = "0.2", features = ["macros"] }
+rand = "0.7"
+meval = "0.2"
+lazy_static = "1.4"
+regex = "1.3"
+anyhow = "1"
+
+[dependencies.serenity]
+default-features = false
+#features = ["framework", "standard_framework", "rustls_backend"]
+features = [
+    "builder",
+    "client",
+    "cache",
+    "gateway",
+    "http",
+    "model",
+    "utils",
+    "rustls_backend",
+]
+version = "0.9.0-rc.1"
