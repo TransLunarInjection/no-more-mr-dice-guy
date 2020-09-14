@@ -1,11 +1,9 @@
 #[macro_use]
 extern crate lazy_static;
 
-use anyhow::{Error, Result};
-use rand::Rng;
+use anyhow::Result;
 use regex::{Captures, Regex};
-use serenity::model::guild::PartialMember;
-use serenity::model::prelude::{Activity, Member};
+use serenity::model::prelude::Activity;
 use serenity::model::user::OnlineStatus;
 use serenity::{
 	async_trait,
@@ -16,27 +14,9 @@ use std::env;
 
 pub mod rolls;
 
-// Serenity implements transparent sharding in a way that you do not need to
-// manually handle separate processes or connections manually.
-//
-// Transparent sharding is useful for a shared cache. Instead of having caches
-// with duplicated data, a shared cache means all your data can be easily
-// accessible across all shards.
-//
-// If your bot is on many guilds - or over the maximum of 2500 - then you
-// should/must use guild sharding.
-//
-// This is an example file showing how guild sharding works. For this to
-// properly be able to be seen in effect, your bot should be in at least 2
-// guilds.
-//
-// Taking a scenario of 2 guilds, try saying "!ping" in one guild. It should
-// print either "0" or "1" in the console. Saying "!ping" in the other guild,
-// it should cache the other number in the console. This confirms that guild
-// sharding works.
 struct Handler;
 
-const CMD_PREFIX: &'static str = "d;";
+const CMD_PREFIX: &str = "d;";
 
 async fn handle_command(ctx: Context, msg: Message) -> Result<()> {
 	let mut cmd_parts = msg.content.trim_start_matches(CMD_PREFIX).split(' ');
@@ -55,11 +35,11 @@ async fn handle_command(ctx: Context, msg: Message) -> Result<()> {
 		"ping" => msg.channel_id.say(&ctx.http, "Pong!").await,
 		"roll" | "r" => {
 			let result = roll(cmd_parts);
-			msg.channel_id.say(&ctx.http, result).await
+			msg.channel_id.say(&ctx.http, result?).await
 		}
 		"inline" | "i" => {
-			let result = inline_rolls(&ctx, &msg, cmd_parts.collect::<Vec<&str>>().join(" ")).await;
-			msg.channel_id.say(&ctx.http, result).await
+			let result = inline_rolls(&msg, cmd_parts.collect::<Vec<&str>>().join(" ")).await;
+			msg.channel_id.say(&ctx.http, result?).await
 		}
 		_ => {
 			msg.channel_id
@@ -74,26 +54,34 @@ async fn handle_command(ctx: Context, msg: Message) -> Result<()> {
 	Ok(())
 }
 
-async fn inline_rolls(ctx: &Context, msg: &Message, message: String) -> String {
+async fn inline_rolls(msg: &Message, message: String) -> Result<String> {
 	lazy_static! {
 		static ref ROLL_REGEX: Regex = Regex::new(r"\[\[([^\]]+)\]\]").unwrap();
 	}
 	let nick = &msg.author.name;
-	format!(
-		"{}: {}",
-		nick,
-		ROLL_REGEX.replace_all(&message, |caps: &Captures| {
-			format!("{}", rolls::roll_expression(&caps[1]))
-		})
-	)
+	let mut err = None;
+	let rolled = ROLL_REGEX.replace_all(&message, |caps: &Captures| {
+		match rolls::roll_expression(&caps[1]) {
+			Ok(rolled) => rolled,
+			Err(e) => {
+				err = Some(e);
+				"".to_string()
+			}
+		}
+	});
+	match err {
+		Some(err) => Err(err),
+		_ => Ok(format!("{}: {}", nick, rolled)),
+	}
 }
 
-fn roll<'a>(mut cmd_parts: impl Iterator<Item = &'a str>) -> String {
+fn roll<'a>(cmd_parts: impl Iterator<Item = &'a str>) -> Result<String> {
 	let parts: Vec<&str> = cmd_parts.collect();
-	if parts.is_empty() {
-		return rolls::roll_expression("1d20");
-	}
-	return rolls::roll_expression(&parts.join(" "));
+	Ok(if parts.is_empty() {
+		rolls::roll_expression("1d20")?
+	} else {
+		rolls::roll_expression(&parts.join(" "))?
+	})
 }
 
 #[async_trait]

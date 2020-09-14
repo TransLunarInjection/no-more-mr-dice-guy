@@ -1,51 +1,66 @@
 use rand::Rng;
 use regex::{Captures, Regex};
-use std::borrow::{Borrow, Cow};
-use std::rc::Rc;
+use std::borrow::Cow;
+
+use anyhow::{anyhow, Result};
 use std::str::Chars;
 
 lazy_static! {
 	static ref ROLL_REGEX: Regex = Regex::new(r"(^|[+\- (])(\d+d[^+\- )]+)($|[$+\- )])").unwrap();
 }
 
-pub fn roll_expression(msg: &str) -> String {
-	let (dice, vals) = roll_expressions(msg);
+pub fn roll_expression(msg: &str) -> Result<String> {
+	let (dice, vals) = roll_expressions(msg)?;
 	let evaled = meval::eval_str(vals).unwrap();
-	return format!("{} => **{}**", dice, evaled);
+	Ok(format!("{} => **{}**", dice, evaled))
 }
 
-pub fn roll_expressions(msg: &str) -> (String, String) {
+pub fn roll_expressions(msg: &str) -> Result<(String, String)> {
 	let mut rolls = vec![];
 	let mut idx = 0;
 	let mut result_rolled = Cow::from(msg);
 	loop {
-		let r2 = ROLL_REGEX.replace(&result_rolled, |caps: &Captures| {
+		match ROLL_REGEX.replace(&result_rolled, |caps: &Captures| {
 			rolls.push(DiceRoll::from_str(&caps[2]));
-			let rep = format!("{}{}{}", &caps[1], rolls[idx].dice(), &caps[3]);
+			let rep = format!(
+				"{}{}{}",
+				&caps[1],
+				rolls[idx]
+					.as_ref()
+					.map(|it| it.dice())
+					.unwrap_or_else(|_| "".to_string()),
+				&caps[3]
+			);
 			idx += 1;
 			rep
-		});
-		match r2 {
+		}) {
 			Cow::Borrowed(_) => break,
 			Cow::Owned(owned) => result_rolled = Cow::from(owned),
 		}
 	}
 	idx = 0;
 
+	let rolls = {
+		let mut new_rolls = vec![];
+		for roll in rolls {
+			new_rolls.push(roll?)
+		}
+		new_rolls
+	};
+
 	let mut result_valued = Cow::from(msg);
 	loop {
-		let r2 = ROLL_REGEX.replace(&result_valued, |caps: &Captures| {
+		match ROLL_REGEX.replace(&result_valued, |caps: &Captures| {
 			let rep = format!("{}{}{}", &caps[1], rolls[idx].val(), &caps[3]);
 			idx += 1;
 			rep
-		});
-		match r2 {
+		}) {
 			Cow::Borrowed(_) => break,
 			Cow::Owned(owned) => result_valued = Cow::from(owned),
 		}
 	}
 
-	return (result_rolled.to_string(), result_valued.to_string());
+	Ok((result_rolled.to_string(), result_valued.to_string()))
 }
 
 // A single NdN roll eg 3d20 -> [1, 5, 20]
@@ -66,8 +81,8 @@ enum Explode {
 }
 
 impl DiceRoll {
-	fn from_str(str: &str) -> DiceRoll {
-		let mut iter = str.chars().into_iter();
+	fn from_str(str: &str) -> Result<DiceRoll> {
+		let mut iter = str.chars();
 		let mut ty = '_';
 		let mut number_of_dice = 1;
 		let mut dice_size = 1;
@@ -96,7 +111,7 @@ impl DiceRoll {
 				'>' => {
 					min = Some(val);
 				}
-				_ => unimplemented!(),
+				_ => return Err(anyhow!("Unknown roll character '{}'", ty)),
 			}
 			iter = new_iter;
 			ty = match next_type {
@@ -130,14 +145,14 @@ impl DiceRoll {
 			}
 		}
 
-		DiceRoll {
+		Ok(DiceRoll {
 			number_of_dice,
 			dice_size,
 			explode,
 			min,
 			max,
 			rolls,
-		}
+		})
 	}
 
 	fn check_dice(&self, dice: u32) -> bool {
@@ -189,21 +204,12 @@ fn parse_int_until(mut chars: Chars) -> (Chars, Option<u32>, Option<char>) {
 			Some(chr) => break Some(chr),
 		}
 	};
-	return (chars, int_chars.parse().ok(), end);
+	(chars, int_chars.parse().ok(), end)
 }
-
-struct RolledDice {
-	settings: DiceRoll,
-	rolls: Vec<u32>,
-}
-
-impl RolledDice {}
 
 #[cfg(test)]
 mod test {
 	use super::*;
-	use regex::Regex;
-	use std::borrow::Borrow;
 
 	#[test]
 	fn check_regex() {
@@ -214,9 +220,9 @@ mod test {
 	}
 
 	#[test]
-	fn dice_roll_from_str() {
+	fn dice_roll_from_str() -> Result<()> {
 		assert_eq!(
-			DiceRoll::from_str("1d1"),
+			DiceRoll::from_str("1d1")?,
 			DiceRoll {
 				number_of_dice: 1,
 				dice_size: 1,
@@ -225,18 +231,20 @@ mod test {
 				max: None,
 				rolls: vec![1]
 			}
-		)
+		);
+		Ok(())
 	}
 
 	#[test]
-	fn roll_expression_simple() {
+	fn roll_expression_simple() -> Result<()> {
 		assert_eq!(
-			roll_expressions("(1d1+1d1)"),
+			roll_expressions("(1d1+1d1)")?,
 			("([1, ]+[1, ])".to_string(), "(1+1)".to_string())
 		);
 		assert_eq!(
-			roll_expressions("(1d1 + 1d1)"),
+			roll_expressions("(1d1 + 1d1)")?,
 			("([1, ] + [1, ])".to_string(), "(1 + 1)".to_string())
 		);
+		Ok(())
 	}
 }
