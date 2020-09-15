@@ -1,5 +1,5 @@
 use rand::Rng;
-use regex::{Captures, Regex};
+use regex::{Captures, Regex, Replacer};
 use std::borrow::Cow;
 
 use anyhow::{anyhow, Result};
@@ -10,57 +10,59 @@ lazy_static! {
 }
 
 pub fn roll_expression(msg: &str) -> Result<String> {
-	let (dice, vals) = roll_expressions(msg)?;
+	let (dice, vals) = roll_expressions(msg, &mut rand::thread_rng())?;
 	let evaled = meval::eval_str(vals).unwrap();
 	Ok(format!("{} => **{}**", dice, evaled))
 }
 
-pub fn roll_expressions(msg: &str) -> Result<(String, String)> {
+pub fn roll_expressions(msg: &str, rng: &mut impl Rng) -> Result<(String, String)> {
 	let mut rolls = vec![];
-	let mut idx = 0;
-	let mut result_rolled = Cow::from(msg);
-	loop {
-		match ROLL_REGEX.replace(&result_rolled, |caps: &Captures| {
-			rolls.push(DiceRoll::from_str(&caps[2]));
-			let rep = format!(
-				"{}{}{}",
-				&caps[1],
-				rolls[idx]
-					.as_ref()
-					.map(|it| it.dice())
-					.unwrap_or_else(|_| "".to_string()),
-				&caps[3]
-			);
-			idx += 1;
-			rep
-		}) {
-			Cow::Borrowed(_) => break,
-			Cow::Owned(owned) => result_rolled = Cow::from(owned),
-		}
-	}
-	idx = 0;
 
-	let rolls = {
-		let mut new_rolls = vec![];
-		for roll in rolls {
-			new_rolls.push(roll?)
-		}
-		new_rolls
+	let result_rolled = {
+		let mut idx = 0;
+		let mut err = Ok(());
+		let result =
+			regex_replace_all_overlapping(&ROLL_REGEX, Cow::from(msg), |caps: &Captures| {
+				let roll = match DiceRoll::from_str(&caps[2], rng) {
+					Ok(roll) => roll,
+					Err(e) => {
+						err = Err(e);
+						return "".to_string();
+					}
+				};
+				let rep = format!("{}{}{}", &caps[1], roll.dice(), &caps[3]);
+				rolls.push(roll);
+				idx += 1;
+				rep
+			});
+		err?;
+		result
 	};
 
-	let mut result_valued = Cow::from(msg);
-	loop {
-		match ROLL_REGEX.replace(&result_valued, |caps: &Captures| {
+	let result_valued = {
+		let mut idx = 0;
+		regex_replace_all_overlapping(&ROLL_REGEX, Cow::from(msg), |caps: &Captures| {
 			let rep = format!("{}{}{}", &caps[1], rolls[idx].val(), &caps[3]);
 			idx += 1;
 			rep
-		}) {
+		})
+	};
+
+	Ok((result_rolled, result_valued))
+}
+
+fn regex_replace_all_overlapping(
+	regex: &Regex,
+	mut msg: Cow<str>,
+	mut replacer: impl Replacer,
+) -> String {
+	loop {
+		match regex.replace(&msg, replacer.by_ref()) {
 			Cow::Borrowed(_) => break,
-			Cow::Owned(owned) => result_valued = Cow::from(owned),
+			Cow::Owned(owned) => msg = Cow::from(owned),
 		}
 	}
-
-	Ok((result_rolled.to_string(), result_valued.to_string()))
+	msg.to_string()
 }
 
 // A single NdN roll eg 3d20 -> [1, 5, 20]
@@ -81,7 +83,7 @@ enum Explode {
 }
 
 impl DiceRoll {
-	fn from_str(str: &str) -> Result<DiceRoll> {
+	fn from_str(str: &str, rng: &mut impl Rng) -> Result<DiceRoll> {
 		let mut iter = str.chars();
 		let mut ty = '_';
 		let mut number_of_dice = 1;
@@ -125,13 +127,13 @@ impl DiceRoll {
 		while dice_to_roll > 0 {
 			let mut maxed = 0;
 			for _ in 0..number_of_dice {
-				let mut current_roll = rand::thread_rng().gen_range(1, dice_size + 1);
+				let mut current_roll = rng.gen_range(1, dice_size + 1);
 				let mut total = current_roll;
 				if current_roll == dice_size {
 					maxed += 1;
 					if explode == Some(Explode::Compounding) {
 						while current_roll == dice_size {
-							current_roll = rand::thread_rng().gen_range(1, dice_size + 1);
+							current_roll = rng.gen_range(1, dice_size + 1);
 							total += current_roll;
 						}
 					}
@@ -222,7 +224,7 @@ mod test {
 	#[test]
 	fn dice_roll_from_str() -> Result<()> {
 		assert_eq!(
-			DiceRoll::from_str("1d1")?,
+			DiceRoll::from_str("1d1", &mut rand::thread_rng())?,
 			DiceRoll {
 				number_of_dice: 1,
 				dice_size: 1,
@@ -235,15 +237,27 @@ mod test {
 		Ok(())
 	}
 
+	fn test_rng() -> impl Rng {
+		use rand::SeedableRng;
+		rand::rngs::StdRng::from_seed([0; 32])
+	}
+
 	#[test]
 	fn roll_expression_simple() -> Result<()> {
 		assert_eq!(
-			roll_expressions("(1d1+1d1)")?,
-			("([1, ]+[1, ])".to_string(), "(1+1)".to_string())
+			roll_expressions("(1d1+1d1)", &mut test_rng())?,
+			("([1]+[1])".to_string(), "(1+1)".to_string())
 		);
 		assert_eq!(
-			roll_expressions("(1d1 + 1d1)")?,
-			("([1, ] + [1, ])".to_string(), "(1 + 1)".to_string())
+			roll_expressions("(1d1 + 1d1)", &mut test_rng())?,
+			("([1] + [1])".to_string(), "(1 + 1)".to_string())
+		);
+		assert_eq!(
+			roll_expressions("(5d11<5)", &mut test_rng())?,
+			(
+				"([~~8~~, ~~7~~, 2, ~~9~~, ~~6~~])".to_string(),
+				"(2)".to_string()
+			)
 		);
 		Ok(())
 	}
