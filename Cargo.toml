@@ -1,7 +1,7 @@
 [package]
-name = "e02_transparent_guild_sharding"
+name = "no_more_mr_dice_guy"
 version = "0.1.0"
-authors = ["my name <my@email.address>"]
+authors = ["Luna <git@nyx.nova.fail>"]
 edition = "2018"
 
 [dependencies]
