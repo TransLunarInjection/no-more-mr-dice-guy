@@ -1,5 +1,6 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::missing_errors_doc)]
+#![deny(clippy::unwrap_used)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -59,7 +60,7 @@ async fn handle_command(ctx: &Context, msg: &Message) -> Result<()> {
 
 async fn inline_rolls(msg: &Message, message: String) -> Result<String> {
 	lazy_static! {
-		static ref ROLL_REGEX: Regex = Regex::new(r"\[\[([^\]]+)\]\]").unwrap();
+		static ref ROLL_REGEX: Regex = Regex::new(r"\[\[([^\]]+)\]\]").expect("Hardcoded regex");
 	}
 	let nick = &msg.author.name;
 	let mut err = None;

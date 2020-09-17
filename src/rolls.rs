@@ -8,7 +8,8 @@ use std::str::Chars;
 type DiceInt = u32;
 
 lazy_static! {
-	static ref ROLL_REGEX: Regex = Regex::new(r"(^|[+\- (])(\d+d[^+\- )]+)($|[$+\- )])").unwrap();
+	static ref ROLL_REGEX: Regex =
+		Regex::new(r"(^|[+\- (])(\d+d[^+\- )]+)($|[$+\- )])").expect("Hardcoded regex");
 }
 
 pub fn roll_expression(msg: &str) -> Result<String> {
