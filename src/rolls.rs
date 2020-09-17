@@ -2,7 +2,7 @@ use rand::Rng;
 use regex::{Captures, Regex, Replacer};
 use std::borrow::Cow;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, ensure, Result};
 use std::str::Chars;
 
 lazy_static! {
@@ -121,6 +121,17 @@ impl DiceRoll {
 				None => break,
 			}
 		}
+
+		ensure!(
+			dice_size > 0,
+			"Must have >= 0 sides on dice to roll. Tried: {}",
+			dice_size
+		);
+		ensure!(
+			number_of_dice > 0,
+			"Must have >= 0 dice to roll. Tried: {}",
+			number_of_dice
+		);
 
 		let mut rolls = vec![];
 		let mut dice_to_roll = number_of_dice;

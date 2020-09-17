@@ -18,7 +18,7 @@ struct Handler;
 
 const CMD_PREFIX: &str = "d;";
 
-async fn handle_command(ctx: Context, msg: Message) -> Result<()> {
+async fn handle_command(ctx: &Context, msg: &Message) -> Result<()> {
 	let mut cmd_parts = msg.content.trim_start_matches(CMD_PREFIX).split(' ');
 	let cmd = cmd_parts.next();
 	let cmd = match cmd {
@@ -88,9 +88,17 @@ fn roll<'a>(cmd_parts: impl Iterator<Item = &'a str>) -> Result<String> {
 impl EventHandler for Handler {
 	async fn message(&self, ctx: Context, msg: Message) {
 		if msg.content.starts_with(CMD_PREFIX) {
-			match handle_command(ctx, msg).await {
+			match handle_command(&ctx, &msg).await {
 				Ok(_) => {}
-				Err(e) => eprintln!("{:?}", e),
+				Err(e) => {
+					eprintln!("{:?}", e);
+					match msg.channel_id.say(&ctx.http, e.to_string()).await {
+						Ok(_) => {}
+						Err(e) => {
+							eprintln!("{:?}", e);
+						}
+					}
+				}
 			}
 		}
 	}
