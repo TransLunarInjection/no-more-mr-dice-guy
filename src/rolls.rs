@@ -1,14 +1,15 @@
+use anyhow::{anyhow, Result};
 use rand::Rng;
 use regex::{Captures, Regex, Replacer};
 use std::borrow::Cow;
 
-use anyhow::{anyhow, ensure, Result};
-use std::str::Chars;
-
 type DiceInt = u32;
 
+mod options;
 #[cfg(test)]
 mod test;
+
+use options::Options;
 
 const MAX_ROLLED_DICE: DiceInt = 10_000;
 const MAX_DICE_SIDES: DiceInt = 10_000;
@@ -81,101 +82,33 @@ fn regex_replace_all_overlapping(
 // A single NdN roll eg 3d20 -> [1, 5, 20]
 #[derive(Eq, PartialEq, Debug)]
 struct DiceRoll {
-	number_of_dice: DiceInt, // Xd
-	dice_size: DiceInt,      // dX
-	explode: Option<Explode>,
-	min: Option<DiceInt>,
-	max: Option<DiceInt>,
+	options: Options,
 	rolls: Vec<DiceInt>,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-enum Explode {
-	Standard,
-	Compounding,
 }
 
 impl DiceRoll {
 	fn from_str(str: &str, rng: &mut impl Rng) -> Result<Self> {
-		let mut iter = str.chars();
-		let mut ty = '_';
-		let mut number_of_dice = 1;
-		let mut dice_size = 1;
-		let mut explode: Option<Explode> = None;
-		let mut min = None;
-		let mut max = None;
+		let options = options::parse(str)?;
 
-		loop {
-			let (new_iter, val, next_type) = parse_int_until(iter);
-			let val = val?;
-			match ty {
-				'_' => {
-					number_of_dice = val;
-				}
-				'd' => dice_size = val,
-				'!' => {
-					if explode.is_none() {
-						explode = Some(Explode::Standard);
-					} else {
-						explode = Some(Explode::Compounding);
-					}
-				}
-				'<' => {
-					max = Some(val);
-				}
-				'>' => {
-					min = Some(val);
-				}
-				_ => return Err(anyhow!("Unknown roll character '{}'", ty)),
-			}
-			iter = new_iter;
-			ty = match next_type {
-				Some(next_type) => next_type,
-				None => break,
-			}
-		}
-
-		ensure!(
-			dice_size > 0,
-			"Must have >= 0 sides on dice to roll. Tried: {}",
-			dice_size
-		);
-		ensure!(
-			number_of_dice > 0,
-			"Must have >= 0 dice to roll. Tried: {}",
-			number_of_dice
-		);
-		ensure!(
-			number_of_dice < MAX_ROLLED_DICE,
-			"Must have < {} dice to roll. Tried: {}",
-			MAX_ROLLED_DICE,
-			number_of_dice
-		);
-		ensure!(
-			dice_size < MAX_DICE_SIDES,
-			"Must have < {} dice to roll. Tried: {}",
-			MAX_DICE_SIDES,
-			number_of_dice
-		);
-
-		let dice_size_bound = dice_size
+		let dice_size_bound = options
+			.dice_sides
 			.checked_add(1)
-			.ok_or_else(|| anyhow!("Overflow rolling with sides {}", dice_size))?;
+			.ok_or_else(|| anyhow!("Overflow rolling with sides {}", options.dice_sides))?;
 
 		let mut rolls = vec![];
-		let mut dice_to_roll = number_of_dice;
+		let mut dice_to_roll = options.number_of_dice;
 		while dice_to_roll > 0 {
 			// dice which hit max value which need exploded
 			let mut maxed: DiceInt = 0;
-			for _ in 0..number_of_dice {
+			for _ in 0..options.number_of_dice {
 				let mut current_roll = rng.gen_range(1, dice_size_bound);
 				let mut total = current_roll;
-				if current_roll == dice_size && explode != None {
+				if current_roll == options.dice_sides && options.explode != None {
 					maxed = maxed.checked_add(1).ok_or_else(|| {
 						anyhow!("Overflow due to overflow tracking exploded dice count.")
 					})?;
-					if explode == Some(Explode::Compounding) {
-						while current_roll == dice_size {
+					if options.explode == Some(options::Explode::Compounding) {
+						while current_roll == options.dice_sides {
 							current_roll = rng.gen_range(1, dice_size_bound);
 							total = total.checked_add(current_roll).ok_or_else(|| {
 								anyhow!("Overflow due to overflow during compounded explode")
@@ -187,28 +120,21 @@ impl DiceRoll {
 			}
 
 			dice_to_roll = 0;
-			if explode == Some(Explode::Standard) {
+			if options.explode == Some(options::Explode::Standard) {
 				dice_to_roll = maxed;
 			}
 		}
 
-		Ok(Self {
-			number_of_dice,
-			dice_size,
-			explode,
-			min,
-			max,
-			rolls,
-		})
+		Ok(Self { options, rolls })
 	}
 
 	const fn check_dice(&self, dice: DiceInt) -> bool {
-		if let Some(min) = self.min {
+		if let Some(min) = self.options.min {
 			if dice <= min {
 				return false;
 			}
 		}
-		if let Some(max) = self.max {
+		if let Some(max) = self.options.max {
 			if dice >= max {
 				return false;
 			}
@@ -245,20 +171,4 @@ impl DiceRoll {
 		}
 		Ok(sum)
 	}
-}
-
-fn parse_int_until(mut chars: Chars) -> (Chars, Result<u32>, Option<char>) {
-	let mut int_chars = String::new();
-	let end = loop {
-		match chars.next() {
-			None => break None,
-			Some(chr) if chr.is_numeric() => int_chars.push(chr),
-			Some(chr) => break Some(chr),
-		}
-	};
-	(
-		chars,
-		int_chars.parse::<DiceInt>().map_err(|e| anyhow!("{}", e)),
-		end,
-	)
 }

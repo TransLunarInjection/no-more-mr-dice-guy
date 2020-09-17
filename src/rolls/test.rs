@@ -13,11 +13,13 @@ fn dice_roll_from_str() -> Result<()> {
 	assert_eq!(
 		DiceRoll::from_str("1d1", &mut rand::thread_rng())?,
 		DiceRoll {
-			number_of_dice: 1,
-			dice_size: 1,
-			explode: None,
-			min: None,
-			max: None,
+			options: Options {
+				number_of_dice: 1,
+				dice_sides: 1,
+				explode: None,
+				min: None,
+				max: None
+			},
 			rolls: vec![1]
 		}
 	);
@@ -100,11 +102,13 @@ fn roll_barely_acceptably_sized() {
 #[test]
 fn handle_overflow_in_sum() {
 	assert!(DiceRoll {
-		number_of_dice: 0,
-		dice_size: 0,
-		explode: None,
-		min: None,
-		max: None,
+		options: Options {
+			number_of_dice: 1,
+			dice_sides: 1,
+			explode: None,
+			min: None,
+			max: None
+		},
 		rolls: vec![DiceInt::max_value() - 1, 2]
 	}
 	.val()
