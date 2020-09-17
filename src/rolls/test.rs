@@ -52,6 +52,30 @@ fn roll_expression_simple() -> Result<()> {
 }
 
 #[test]
+fn roll_expression_exploded() -> Result<()> {
+	assert_eq!(
+		roll_expressions("11d3!", &mut test_rng())?,
+		(
+			"[3, 2, 3, 1, 3, 1, 3, 3, 2, 2, 1, 1, 1, 2, 2, 3, 2]".to_string(),
+			"35".to_string()
+		)
+	);
+	Ok(())
+}
+
+#[test]
+fn roll_expression_compounded() -> Result<()> {
+	assert_eq!(
+		roll_expressions("11d3!!", &mut test_rng())?,
+		(
+			"[5, 4, 4, 8, 2, 1, 1, 1, 2, 2, 5]".to_string(),
+			"35".to_string()
+		)
+	);
+	Ok(())
+}
+
+#[test]
 fn roll_negative() {
 	assert!(roll_expression("-1d-1").is_err());
 }
