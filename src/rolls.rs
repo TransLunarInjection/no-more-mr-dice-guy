@@ -5,6 +5,8 @@ use std::borrow::Cow;
 use anyhow::{anyhow, ensure, Result};
 use std::str::Chars;
 
+type DiceInt = u32;
+
 lazy_static! {
 	static ref ROLL_REGEX: Regex = Regex::new(r"(^|[+\- (])(\d+d[^+\- )]+)($|[$+\- )])").unwrap();
 }
@@ -68,12 +70,12 @@ fn regex_replace_all_overlapping(
 // A single NdN roll eg 3d20 -> [1, 5, 20]
 #[derive(Eq, PartialEq, Debug)]
 struct DiceRoll {
-	number_of_dice: u32, // Xd
-	dice_size: u32,      // dX
+	number_of_dice: DiceInt, // Xd
+	dice_size: DiceInt,      // dX
 	explode: Option<Explode>,
-	min: Option<u32>,
-	max: Option<u32>,
-	rolls: Vec<u32>,
+	min: Option<DiceInt>,
+	max: Option<DiceInt>,
+	rolls: Vec<DiceInt>,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -83,7 +85,7 @@ enum Explode {
 }
 
 impl DiceRoll {
-	fn from_str(str: &str, rng: &mut impl Rng) -> Result<DiceRoll> {
+	fn from_str(str: &str, rng: &mut impl Rng) -> Result<Self> {
 		let mut iter = str.chars();
 		let mut ty = '_';
 		let mut number_of_dice = 1;
@@ -158,7 +160,7 @@ impl DiceRoll {
 			}
 		}
 
-		Ok(DiceRoll {
+		Ok(Self {
 			number_of_dice,
 			dice_size,
 			explode,
@@ -168,7 +170,7 @@ impl DiceRoll {
 		})
 	}
 
-	fn check_dice(&self, dice: u32) -> bool {
+	const fn check_dice(&self, dice: DiceInt) -> bool {
 		if let Some(min) = self.min {
 			if dice <= min {
 				return false;
@@ -189,10 +191,10 @@ impl DiceRoll {
 			self.rolls
 				.iter()
 				.map(|it| {
-					(if !self.check_dice(*it) {
-						format!("~~{}~~", it)
-					} else {
+					(if self.check_dice(*it) {
 						it.to_string()
+					} else {
+						format!("~~{}~~", it)
 					}) + ", "
 				})
 				.collect::<String>()
@@ -200,11 +202,11 @@ impl DiceRoll {
 		)
 	}
 
-	fn val(&self) -> i32 {
+	fn val(&self) -> DiceInt {
 		self.rolls
 			.iter()
 			.filter(|it| self.check_dice(**it))
-			.sum::<u32>() as i32
+			.sum::<DiceInt>()
 	}
 }
 

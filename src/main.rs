@@ -1,3 +1,6 @@
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+#![allow(clippy::missing_errors_doc)]
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -38,7 +41,7 @@ async fn handle_command(ctx: &Context, msg: &Message) -> Result<()> {
 			msg.channel_id.say(&ctx.http, result?).await
 		}
 		"inline" | "i" => {
-			let result = inline_rolls(&msg, cmd_parts.collect::<Vec<&str>>().join(" ")).await;
+			let result = inline_rolls(msg, cmd_parts.collect::<Vec<&str>>().join(" ")).await;
 			msg.channel_id.say(&ctx.http, result?).await
 		}
 		_ => {
@@ -71,7 +74,7 @@ async fn inline_rolls(msg: &Message, message: String) -> Result<String> {
 	});
 	match err {
 		Some(err) => Err(err),
-		_ => Ok(format!("{}: {}", nick, rolled)),
+		None => Ok(format!("{}: {}", nick, rolled)),
 	}
 }
 
