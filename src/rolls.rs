@@ -7,6 +7,12 @@ use std::str::Chars;
 
 type DiceInt = u32;
 
+#[cfg(test)]
+mod test;
+
+const MAX_ROLLED_DICE: DiceInt = 10_000;
+const MAX_DICE_SIDES: DiceInt = 10_000;
+
 lazy_static! {
 	static ref ROLL_REGEX: Regex =
 		Regex::new(r"(^|[+\- (])(\d+d[^+\- )]+)($|[$+\- )])").expect("Hardcoded regex");
@@ -44,8 +50,12 @@ pub fn roll_expressions(msg: &str, rng: &mut impl Rng) -> Result<(String, String
 
 	let result_valued = {
 		let mut idx = 0;
+		let sums: Vec<DiceInt> = rolls
+			.iter()
+			.map(DiceRoll::val)
+			.collect::<Result<Vec<DiceInt>>>()?;
 		regex_replace_all_overlapping(&ROLL_REGEX, Cow::from(msg), |caps: &Captures| {
-			let rep = format!("{}{}{}", &caps[1], rolls[idx].val(), &caps[3]);
+			let rep = format!("{}{}{}", &caps[1], sums[idx], &caps[3]);
 			idx += 1;
 			rep
 		})
@@ -97,7 +107,7 @@ impl DiceRoll {
 
 		loop {
 			let (new_iter, val, next_type) = parse_int_until(iter);
-			let val = val.unwrap_or(1);
+			let val = val?;
 			match ty {
 				'_' => {
 					number_of_dice = val;
@@ -135,20 +145,41 @@ impl DiceRoll {
 			"Must have >= 0 dice to roll. Tried: {}",
 			number_of_dice
 		);
+		ensure!(
+			number_of_dice < MAX_ROLLED_DICE,
+			"Must have < {} dice to roll. Tried: {}",
+			MAX_ROLLED_DICE,
+			number_of_dice
+		);
+		ensure!(
+			dice_size < MAX_DICE_SIDES,
+			"Must have < {} dice to roll. Tried: {}",
+			MAX_DICE_SIDES,
+			number_of_dice
+		);
+
+		let dice_size_bound = dice_size
+			.checked_add(1)
+			.ok_or_else(|| anyhow!("Overflow rolling with sides {}", dice_size))?;
 
 		let mut rolls = vec![];
 		let mut dice_to_roll = number_of_dice;
 		while dice_to_roll > 0 {
-			let mut maxed = 0;
+			// dice which hit max value which need exploded
+			let mut maxed: DiceInt = 0;
 			for _ in 0..number_of_dice {
-				let mut current_roll = rng.gen_range(1, dice_size + 1);
+				let mut current_roll = rng.gen_range(1, dice_size_bound);
 				let mut total = current_roll;
-				if current_roll == dice_size {
-					maxed += 1;
+				if current_roll == dice_size && explode != None {
+					maxed = maxed.checked_add(1).ok_or_else(|| {
+						anyhow!("Overflow due to overflow tracking exploded dice count.")
+					})?;
 					if explode == Some(Explode::Compounding) {
 						while current_roll == dice_size {
-							current_roll = rng.gen_range(1, dice_size + 1);
-							total += current_roll;
+							current_roll = rng.gen_range(1, dice_size_bound);
+							total = total.checked_add(current_roll).ok_or_else(|| {
+								anyhow!("Overflow due to overflow during compounded explode")
+							})?;
 						}
 					}
 				}
@@ -203,15 +234,20 @@ impl DiceRoll {
 		)
 	}
 
-	fn val(&self) -> DiceInt {
-		self.rolls
-			.iter()
-			.filter(|it| self.check_dice(**it))
-			.sum::<DiceInt>()
+	fn val(&self) -> Result<DiceInt> {
+		let mut sum: DiceInt = 0;
+		for roll in &self.rolls {
+			if self.check_dice(*roll) {
+				sum = sum
+					.checked_add(*roll)
+					.ok_or_else(|| anyhow!("Overflow summing dice values"))?;
+			}
+		}
+		Ok(sum)
 	}
 }
 
-fn parse_int_until(mut chars: Chars) -> (Chars, Option<u32>, Option<char>) {
+fn parse_int_until(mut chars: Chars) -> (Chars, Result<u32>, Option<char>) {
 	let mut int_chars = String::new();
 	let end = loop {
 		match chars.next() {
@@ -220,64 +256,9 @@ fn parse_int_until(mut chars: Chars) -> (Chars, Option<u32>, Option<char>) {
 			Some(chr) => break Some(chr),
 		}
 	};
-	(chars, int_chars.parse().ok(), end)
-}
-
-#[cfg(test)]
-mod test {
-	use super::*;
-
-	#[test]
-	fn check_regex() {
-		assert!(ROLL_REGEX.is_match("(1d20)"));
-		assert!(ROLL_REGEX.is_match("1d20"));
-		assert!(ROLL_REGEX.is_match("2 + 1d20"));
-		assert!(ROLL_REGEX.is_match("4 + (5d11 / 2)"));
-	}
-
-	#[test]
-	fn dice_roll_from_str() -> Result<()> {
-		assert_eq!(
-			DiceRoll::from_str("1d1", &mut rand::thread_rng())?,
-			DiceRoll {
-				number_of_dice: 1,
-				dice_size: 1,
-				explode: None,
-				min: None,
-				max: None,
-				rolls: vec![1]
-			}
-		);
-		Ok(())
-	}
-
-	fn test_rng() -> impl Rng {
-		use rand::SeedableRng;
-		rand::rngs::StdRng::from_seed([0; 32])
-	}
-
-	#[test]
-	fn roll_expression_simple() -> Result<()> {
-		assert_eq!(
-			roll_expressions("(1d1+1d1)", &mut test_rng())?,
-			("([1]+[1])".to_string(), "(1+1)".to_string())
-		);
-		assert_eq!(
-			roll_expressions("(1d1 + 1d1)", &mut test_rng())?,
-			("([1] + [1])".to_string(), "(1 + 1)".to_string())
-		);
-		assert_eq!(
-			roll_expressions("(5d11<5)", &mut test_rng())?,
-			(
-				"([~~8~~, ~~7~~, 2, ~~9~~, ~~6~~])".to_string(),
-				"(2)".to_string()
-			)
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn roll_negative() {
-		assert!(roll_expression("-1d-1").is_err());
-	}
+	(
+		chars,
+		int_chars.parse::<DiceInt>().map_err(|e| anyhow!("{}", e)),
+		end,
+	)
 }
