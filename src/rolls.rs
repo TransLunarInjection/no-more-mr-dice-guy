@@ -11,7 +11,7 @@ lazy_static! {
 
 pub fn roll_expression(msg: &str) -> Result<String> {
 	let (dice, vals) = roll_expressions(msg, &mut rand::thread_rng())?;
-	let evaled = meval::eval_str(vals).unwrap();
+	let evaled = meval::eval_str(&vals).map_err(|_e| anyhow!("Couldn't evaluate {}", vals))?;
 	Ok(format!("{} => **{}**", dice, evaled))
 }
 
@@ -271,5 +271,10 @@ mod test {
 			)
 		);
 		Ok(())
+	}
+
+	#[test]
+	fn roll_negative() {
+		assert!(roll_expression("-1d-1").is_err());
 	}
 }
