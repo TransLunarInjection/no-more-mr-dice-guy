@@ -21,8 +21,13 @@ lazy_static! {
 
 pub fn roll_expression(msg: &str) -> Result<String> {
 	let (dice, vals) = roll_expressions(msg, &mut rand::thread_rng())?;
-	let evaled = meval::eval_str(&vals).map_err(|_e| anyhow!("Couldn't evaluate {}", vals))?;
-	Ok(format!("{} => **{}**", dice, evaled))
+
+	Ok(if vals.parse::<DiceInt>().is_ok() {
+		format!("**{}**", vals)
+	} else {
+		let evaled = meval::eval_str(&vals).map_err(|_e| anyhow!("Couldn't evaluate {}", vals))?;
+		format!("{} => **{}**", dice, evaled)
+	})
 }
 
 pub fn roll_expressions(msg: &str, rng: &mut impl Rng) -> Result<(String, String)> {

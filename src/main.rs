@@ -1,135 +1,201 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::missing_errors_doc)]
 #![deny(clippy::unwrap_used)]
+#![forbid(unsafe_code)]
 
 #[macro_use]
 extern crate lazy_static;
 
 use anyhow::Result;
-use regex::{Captures, Regex};
+use serenity::client::bridge::gateway::{GatewayIntents, ShardManager};
+use serenity::framework::StandardFramework;
 use serenity::model::prelude::Activity;
 use serenity::model::user::OnlineStatus;
-use serenity::{
-	async_trait,
-	model::{channel::Message, gateway::Ready},
-	prelude::*,
-};
+use serenity::{async_trait, model::gateway::Ready, model::prelude::*, prelude::*};
+use std::collections::HashMap;
 use std::env;
+use std::sync::Arc;
+use tokio::time::Duration;
 
+//top-level commands
+pub mod commands;
 pub mod rolls;
+pub mod store;
+
+pub mod prelude {
+	pub use log::{error, info, warn};
+}
+
+use prelude::*;
+
+const COLOR: (u8, u8, u8) = (186, 155, 255);
+const CMD_PREFIX: &str = "d;";
+
+struct ShardManagerContainer;
+
+impl TypeMapKey for ShardManagerContainer {
+	type Value = Arc<Mutex<ShardManager>>;
+}
+
+struct CommandCounter;
+
+impl TypeMapKey for CommandCounter {
+	type Value = HashMap<String, u64>;
+}
+
+struct RoleData;
+
+impl TypeMapKey for RoleData {
+	type Value = Arc<commands::roles::Persistent>;
+}
 
 struct Handler;
 
-const CMD_PREFIX: &str = "d;";
-
-async fn handle_command(ctx: &Context, msg: &Message) -> Result<()> {
-	let mut cmd_parts = msg.content.trim_start_matches(CMD_PREFIX).split(' ');
-	let cmd = cmd_parts.next();
-	let cmd = match cmd {
-		None => {
-			msg.channel_id
-				.say(&ctx.http, "invalid command: no command specified")
-				.await?;
-			return Ok(());
-		}
-		Some(cmd) => cmd,
-	};
-
-	match cmd {
-		"ping" => msg.channel_id.say(&ctx.http, "Pong!").await,
-		"roll" | "r" => {
-			let result = roll(cmd_parts);
-			msg.channel_id.say(&ctx.http, result?).await
-		}
-		"inline" | "i" => {
-			let result = inline_rolls(msg, cmd_parts.collect::<Vec<&str>>().join(" ")).await;
-			msg.channel_id.say(&ctx.http, result?).await
-		}
-		_ => {
-			msg.channel_id
-				.say(
-					&ctx.http,
-					&format!("invalid command: unknown command {}", cmd),
-				)
-				.await
-		}
-	}?;
-
-	Ok(())
-}
-
-async fn inline_rolls(msg: &Message, message: String) -> Result<String> {
-	lazy_static! {
-		static ref ROLL_REGEX: Regex = Regex::new(r"\[\[([^\]]+)\]\]").expect("Hardcoded regex");
-	}
-	let nick = &msg.author.name;
-	let mut err = None;
-	let rolled = ROLL_REGEX.replace_all(&message, |caps: &Captures| {
-		match rolls::roll_expression(&caps[1]) {
-			Ok(rolled) => rolled,
-			Err(e) => {
-				err = Some(e);
-				"".to_string()
-			}
-		}
-	});
-	match err {
-		Some(err) => Err(err),
-		None => Ok(format!("{}: {}", nick, rolled)),
-	}
-}
-
-fn roll<'a>(cmd_parts: impl Iterator<Item = &'a str>) -> Result<String> {
-	let parts: Vec<&str> = cmd_parts.collect();
-	Ok(if parts.is_empty() {
-		rolls::roll_expression("1d20")?
-	} else {
-		rolls::roll_expression(&parts.join(" "))?
-	})
-}
-
 #[async_trait]
 impl EventHandler for Handler {
-	async fn message(&self, ctx: Context, msg: Message) {
-		if msg.content.starts_with(CMD_PREFIX) {
-			match handle_command(&ctx, &msg).await {
-				Ok(_) => {}
-				Err(e) => {
-					eprintln!("{:?}", e);
-					match msg.channel_id.say(&ctx.http, e.to_string()).await {
-						Ok(_) => {}
-						Err(e) => {
-							eprintln!("{:?}", e);
-						}
-					}
-				}
+	async fn reaction_add(&self, ctx: Context, reaction: Reaction) {
+		match commands::roles::handle_reaction(&ctx, &reaction, true).await {
+			Ok(_) => {}
+			Err(err) => {
+				error!("Error handling reaction_add {:?}", err);
+				let _ = send_warning_message(&ctx, reaction.channel_id, &format!("{}", err)).await;
+			}
+		}
+	}
+
+	async fn reaction_remove(&self, ctx: Context, reaction: Reaction) {
+		match commands::roles::handle_reaction(&ctx, &reaction, false).await {
+			Ok(_) => {}
+			Err(err) => {
+				error!("Error handling reaction_remove {:?}", err);
+				let _ = send_warning_message(&ctx, reaction.channel_id, &format!("{}", err)).await;
 			}
 		}
 	}
 
 	async fn ready(&self, ctx: Context, ready: Ready) {
-		let activity = Activity::playing(&format!("rolling on shard {}", ctx.shard_id));
+		let activity = Activity::playing(&format!("{}help | shard {}", CMD_PREFIX, ctx.shard_id));
 		ctx.set_presence(Some(activity), OnlineStatus::Online).await;
-		println!("{} is connected!", ready.user.name);
+		info!(
+			"{} shard {} is connected to {} guilds",
+			ready.user.name,
+			ctx.shard_id,
+			ready.guilds.len()
+		);
 	}
 }
 
 #[tokio::main]
 async fn main() {
+	if std::env::var_os("RUST_LOG") == None {
+		std::env::set_var("RUST_LOG", "info");
+	}
+
+	tracing_subscriber::fmt::init();
+
+	match start().await {
+		Ok(_) => {}
+		Err(e) => error!("{:?}", e),
+	}
+}
+
+async fn start() -> Result<()> {
+	let intents = GatewayIntents::GUILDS
+		| GatewayIntents::DIRECT_MESSAGES // DM commands
+		| GatewayIntents::GUILD_EMOJIS // emoji
+		| GatewayIntents::GUILD_MESSAGE_REACTIONS // guild role reacts
+		| GatewayIntents::GUILD_MESSAGES; // guild commands
+
 	// Configure the client with your Discord bot token in the environment.
 	let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+
+	let framework = commands::register(StandardFramework::new().configure(|c| {
+		c.prefix(CMD_PREFIX)
+			.allow_dm(true)
+			.case_insensitivity(true)
+			.ignore_bots(false)
+			.ignore_webhooks(false)
+			.delimiters(vec![" "])
+	}));
+
 	let mut client = Client::new(&token)
+		.intents(intents)
 		.event_handler(Handler)
+		.framework(framework)
 		.await
 		.expect("Err creating client");
 
-	// The total number of shards to use. The "current shard number" of a
-	// shard - that is, the shard it is assigned to - is indexed at 0,
-	// while the total shard count is indexed at 1.
-	//
-	// This means if you have 5 shards, your total shard count will be 5, while
-	// each shard will be assigned numbers 0 through 4.
-	if let Err(why) = client.start_shards(2).await {
-		println!("Client error: {:?}", why);
+	{
+		let mut data = client.data.write().await;
+		data.insert::<CommandCounter>(HashMap::default());
+		data.insert::<ShardManagerContainer>(Arc::clone(&client.shard_manager));
+		data.insert::<RoleData>(Arc::new(commands::roles::Persistent::default()));
 	}
+
+	{
+		let manager = client.shard_manager.clone();
+		ctrlc::set_handler(move || {
+			stop_client(&*manager);
+		})
+		.expect("Failed to set ctrlc handler");
+	}
+
+	// Automatically picks shard count per discord API's suggestion
+	match client.start_autosharded().await {
+		Ok(_) => {
+			info!("Client stopped normally");
+		}
+		Err(err) => {
+			error!("Client error: {:?}", err);
+		}
+	}
+
+	Ok(())
+}
+
+#[tokio::main]
+async fn stop_client(manager: &Mutex<ShardManager>) {
+	// HACK: this depends on sleeping
+	// TODO: remove workaround after next serenity update, fixed for #950
+	info!("Stopping shards");
+	{
+		let mut manager = manager.lock().await;
+		{
+			let runner = manager.runners.lock().await;
+			for (_, v) in &mut runner.iter() {
+				v.runner_tx.set_status(OnlineStatus::Offline);
+			}
+			// without this delay doesn't set offline status
+			tokio::time::delay_for(Duration::from_millis(500)).await;
+			for (k, v) in &mut runner.iter() {
+				v.runner_tx.shutdown_clean();
+				info!("Shutdown clean called on {}", k)
+			}
+		}
+		tokio::time::delay_for(Duration::from_millis(250)).await;
+		manager.shutdown_all().await;
+	}
+	info!("Stopped");
+}
+
+async fn send_warning_message(ctx: &Context, channel: ChannelId, text: &str) -> anyhow::Result<()> {
+	channel
+		.send_message(&ctx.http, |m| {
+			warning_message(m, text);
+			m
+		})
+		.await?;
+
+	Ok(())
+}
+
+fn warning_message(m: &mut serenity::builder::CreateMessage, msg: &str) {
+	m.embed(|e| {
+		e.title("Error");
+
+		// warning triangle emoji
+		e.description(format!("\u{26a0}\u{fe0f}{}", msg));
+
+		e
+	});
 }
