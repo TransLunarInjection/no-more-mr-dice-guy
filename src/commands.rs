@@ -104,6 +104,14 @@ async fn invite(ctx: &Context, msg: &Message) -> CommandResult {
 // cases of ~~strikethrough-commands~~, but only if
 // `strikethrough_commands_tip_{dm, guild}` aren't specified.
 // If you pass in a value, it will be displayed instead.
+// The generated values refer to guilds instead of servers so they're overridden here:
+#[dm_only_text("Only in DMs")]
+#[guild_only_text("Only in servers")]
+#[dm_and_guild_text("In DMs and servers")]
+#[strikethrough_commands_tip_in_dm(
+	"~~`Strikethrough commands`~~ are unavailable because they only work in servers."
+)]
+#[strikethrough_commands_tip_in_guild("~~`Strikethrough commands`~~ are unavailable because you (or this bot) do not have the required permissions.")]
 async fn my_help(
 	context: &Context,
 	msg: &Message,

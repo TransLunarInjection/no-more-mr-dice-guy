@@ -121,6 +121,7 @@ pub async fn handle_reaction(ctx: &Context, reaction: &Reaction, added: bool) ->
 struct Roles;
 
 #[command]
+#[only_in(guilds)]
 #[checks(ManageRolesHigh)]
 #[description("Adds a toggleable role for the given emoji. Must use an emoji from this server.")]
 #[usage(":emoji: role name here")]
@@ -157,6 +158,7 @@ async fn add_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> Comman
 }
 
 #[command]
+#[only_in(guilds)]
 #[checks(ManageRolesHigh)]
 #[description("Removes a toggleable role for the given emoji. Must use an emoji from this server.")]
 #[usage(":emoji:")]
@@ -184,6 +186,7 @@ async fn remove_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> Com
 }
 
 #[command]
+#[only_in(guilds)]
 #[checks(ManageRolesHigh)]
 #[description("Creates (or updates) the role toggle message")]
 #[usage("")]
