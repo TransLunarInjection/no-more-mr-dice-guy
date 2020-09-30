@@ -18,11 +18,12 @@ pub mod prelude {
 use prelude::*;
 
 #[group]
-#[commands(latency)]
+#[commands(invite, latency)]
 struct General;
 
 #[command]
 #[aliases(ping)]
+#[description("Gets the current shard's latency")]
 async fn latency(ctx: &Context, msg: &Message) -> CommandResult {
 	// The shard manager is an interface for mutating, stopping, restarting, and
 	// retrieving information about shards.
@@ -52,6 +53,22 @@ async fn latency(ctx: &Context, msg: &Message) -> CommandResult {
 	let _ = msg
 		.reply(ctx, &format!("The shard latency is {:?}", runner.latency))
 		.await;
+
+	Ok(())
+}
+
+#[command]
+#[description("Gets this bot's invite link")]
+async fn invite(ctx: &Context, msg: &Message) -> CommandResult {
+	let id = ctx.cache.current_user_id().await;
+	msg.reply(
+		&ctx,
+		format!(
+			"<https://discord.com/oauth2/authorize?client_id={}&scope=bot&permissions=0>",
+			id
+		),
+	)
+	.await?;
 
 	Ok(())
 }

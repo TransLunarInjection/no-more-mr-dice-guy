@@ -122,6 +122,8 @@ struct Roles;
 
 #[command]
 #[checks(ManageRolesHigh)]
+#[description("Adds a toggleable role for the given emoji. Must use an emoji from this server.")]
+#[usage(":emoji: role name here")]
 async fn add_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 	args.trimmed();
 	let emoji: EmojiIdentifier =
@@ -156,6 +158,8 @@ async fn add_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> Comman
 
 #[command]
 #[checks(ManageRolesHigh)]
+#[description("Removes a toggleable role for the given emoji. Must use an emoji from this server.")]
+#[usage(":emoji:")]
 async fn remove_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 	args.trimmed();
 	let emoji: EmojiIdentifier =
@@ -181,6 +185,8 @@ async fn remove_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> Com
 
 #[command]
 #[checks(ManageRolesHigh)]
+#[description("Creates (or updates) the role toggle message")]
+#[usage("")]
 async fn create_toggle_message(ctx: &Context, msg: &Message) -> CommandResult {
 	update_or_create_toggle_message(ctx, msg, true).await
 }
