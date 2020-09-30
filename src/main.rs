@@ -15,7 +15,6 @@ use serenity::{async_trait, model::gateway::Ready, model::prelude::*, prelude::*
 use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
-use tokio::time::Duration;
 
 //top-level commands
 pub mod commands;
@@ -155,27 +154,8 @@ async fn start() -> Result<()> {
 
 #[tokio::main]
 async fn stop_client(manager: &Mutex<ShardManager>) {
-	// HACK: this depends on sleeping
-	// TODO: remove workaround after next serenity update, fixed for #950
-	info!("Stopping shards");
-	{
-		let mut manager = manager.lock().await;
-		{
-			let runner = manager.runners.lock().await;
-			for (_, v) in &mut runner.iter() {
-				v.runner_tx.set_status(OnlineStatus::Offline);
-			}
-			// without this delay doesn't set offline status
-			tokio::time::delay_for(Duration::from_millis(500)).await;
-			for (k, v) in &mut runner.iter() {
-				v.runner_tx.shutdown_clean();
-				info!("Shutdown clean called on {}", k)
-			}
-		}
-		tokio::time::delay_for(Duration::from_millis(250)).await;
-		manager.shutdown_all().await;
-	}
-	info!("Stopped");
+	let mut manager = manager.lock().await;
+	manager.shutdown_all().await;
 }
 
 async fn send_warning_message(ctx: &Context, channel: ChannelId, text: &str) -> anyhow::Result<()> {
