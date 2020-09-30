@@ -12,7 +12,6 @@ use serenity::framework::StandardFramework;
 use serenity::model::prelude::Activity;
 use serenity::model::user::OnlineStatus;
 use serenity::{async_trait, model::gateway::Ready, model::prelude::*, prelude::*};
-use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
 
@@ -34,12 +33,6 @@ struct ShardManagerContainer;
 
 impl TypeMapKey for ShardManagerContainer {
 	type Value = Arc<Mutex<ShardManager>>;
-}
-
-struct CommandCounter;
-
-impl TypeMapKey for CommandCounter {
-	type Value = HashMap<String, u64>;
 }
 
 struct RoleData;
@@ -126,7 +119,6 @@ async fn start() -> Result<()> {
 
 	{
 		let mut data = client.data.write().await;
-		data.insert::<CommandCounter>(HashMap::default());
 		data.insert::<ShardManagerContainer>(Arc::clone(&client.shard_manager));
 		data.insert::<RoleData>(Arc::new(commands::roles::Persistent::default()));
 	}
