@@ -162,8 +162,8 @@ async fn before(ctx: &Context, msg: &Message, command_name: &str) -> bool {
 	}
 
 	info!(
-		"Got command '{}' by user '{}'",
-		command_name, msg.author.name
+		"Got command '{}' by user '{}' on shard {}",
+		command_name, msg.author.name, ctx.shard_id
 	);
 
 	true // if `before` returns false, command processing doesn't happen.
