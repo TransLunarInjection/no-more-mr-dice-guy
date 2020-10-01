@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use serenity::client::bridge::gateway::ShardId;
 use serenity::framework::standard::{
 	help_commands, Args, CommandGroup, CommandResult, DispatchError, HelpOptions,
@@ -25,34 +26,26 @@ struct General;
 #[aliases(ping)]
 #[description("Gets the current shard's latency")]
 async fn latency(ctx: &Context, msg: &Message) -> CommandResult {
-	// The shard manager is an interface for mutating, stopping, restarting, and
-	// retrieving information about shards.
-	let data = ctx.data.read().await;
+	let latency = {
+		let shard_manager = ctx
+			.data
+			.read()
+			.await
+			.get::<super::ShardManagerContainer>()
+			.ok_or_else(|| anyhow!("Error getting shard manager"))?
+			.clone();
 
-	let shard_manager = if let Some(v) = data.get::<super::ShardManagerContainer>() {
-		v
-	} else {
-		let _ = msg
-			.reply(ctx, "There was a problem getting the shard manager")
-			.await;
+		let manager = shard_manager.lock().await;
+		let runners = manager.runners.lock().await;
+		let runner = runners
+			.get(&ShardId(ctx.shard_id))
+			.ok_or_else(|| anyhow!("No shard {} found", &ctx.shard_id))?;
 
-		return Ok(());
+		runner.latency
 	};
 
-	let manager = shard_manager.lock().await;
-	let runners = manager.runners.lock().await;
-
-	let runner = if let Some(runner) = runners.get(&ShardId(ctx.shard_id)) {
-		runner
-	} else {
-		let _ = msg.reply(ctx, "No shard found");
-
-		return Ok(());
-	};
-
-	let _ = msg
-		.reply(ctx, &format!("The shard latency is {:?}", runner.latency))
-		.await;
+	msg.reply(ctx, &format!("The shard latency is {:?}", latency))
+		.await?;
 
 	Ok(())
 }
