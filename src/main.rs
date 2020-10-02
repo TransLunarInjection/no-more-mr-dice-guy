@@ -21,7 +21,7 @@ pub mod rolls;
 pub mod store;
 
 pub mod prelude {
-	pub use log::{error, info, warn};
+	pub use tracing::{error, info, warn};
 }
 
 use prelude::*;

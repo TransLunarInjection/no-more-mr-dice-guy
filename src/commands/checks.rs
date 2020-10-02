@@ -1,3 +1,4 @@
+use crate::prelude::*;
 use anyhow::{anyhow, Result};
 use serenity::framework::standard::{macros::check, Args, CheckResult, CommandOptions};
 use serenity::{model::prelude::*, prelude::*};
@@ -13,10 +14,9 @@ async fn manage_roles_high(
 	match check_manage_roles_high(ctx, msg).await {
 		Ok(val) => val,
 		Err(err) => {
-			log::warn!(
+			warn!(
 				"Manage roles check failed for {} due to {:?}",
-				&msg.author.name,
-				err
+				&msg.author.name, err
 			);
 			CheckResult::new_user_and_log(&msg.author.name, &err.to_string())
 		}
@@ -95,7 +95,7 @@ async fn check_manage_roles_high(ctx: &Context, msg: &Message) -> Result<CheckRe
 					None => return Err(anyhow!("User must have manage roles permission")),
 				}
 
-				log::info!("Failed manage roles check");
+				info!("Failed manage roles check");
 
 				if allowed {
 					true.into()
