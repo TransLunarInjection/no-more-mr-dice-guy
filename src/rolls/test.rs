@@ -31,6 +31,10 @@ fn test_rng() -> impl Rng {
 	rand::rngs::StdRng::from_seed([0; 32])
 }
 
+fn roll_expressions(msg: &str, rng: &mut impl Rng) -> Result<(String, String)> {
+	super::roll_expressions(msg, rng).map(|(_, dice, vals)| (dice, vals))
+}
+
 #[test]
 fn roll_expression_simple() -> Result<()> {
 	assert_eq!(

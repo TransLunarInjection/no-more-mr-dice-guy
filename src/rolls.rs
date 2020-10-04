@@ -20,9 +20,14 @@ lazy_static! {
 }
 
 pub fn roll_expression(msg: &str) -> Result<String> {
-	let (dice, vals) = roll_expressions(msg, &mut rand::thread_rng())?;
+	let (rolls, dice, vals) = roll_expressions(msg, &mut rand::thread_rng())?;
 
-	Ok(if vals.parse::<DiceInt>().is_ok() {
+	let single_simple_roll = rolls.len() == 1
+		&& rolls[0].options.explode.is_none()
+		&& rolls[0].options.number_of_dice == 1
+		&& vals.parse::<DiceInt>().is_ok();
+
+	Ok(if single_simple_roll {
 		format!("**{}**", vals)
 	} else {
 		let evaled = meval::eval_str(&vals).map_err(|_e| anyhow!("Couldn't evaluate {}", vals))?;
@@ -30,7 +35,7 @@ pub fn roll_expression(msg: &str) -> Result<String> {
 	})
 }
 
-pub fn roll_expressions(msg: &str, rng: &mut impl Rng) -> Result<(String, String)> {
+fn roll_expressions(msg: &str, rng: &mut impl Rng) -> Result<(Vec<DiceRoll>, String, String)> {
 	let mut rolls = vec![];
 
 	let result_rolled = {
@@ -67,7 +72,7 @@ pub fn roll_expressions(msg: &str, rng: &mut impl Rng) -> Result<(String, String
 		})
 	};
 
-	Ok((result_rolled, result_valued))
+	Ok((rolls, result_rolled, result_valued))
 }
 
 fn regex_replace_all_overlapping(
