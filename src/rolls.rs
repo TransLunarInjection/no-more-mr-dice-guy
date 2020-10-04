@@ -3,7 +3,7 @@ use rand::Rng;
 use regex::{Captures, Regex, Replacer};
 use std::borrow::Cow;
 
-type DiceInt = u32;
+type DiceInt = i32;
 
 mod options;
 #[cfg(test)]
@@ -11,7 +11,7 @@ mod test;
 
 use options::Options;
 
-const MAX_ROLLED_DICE: DiceInt = 10_000;
+const MAX_ROLLED_DICE: DiceInt = 500;
 const MAX_DICE_SIDES: DiceInt = 10_000;
 
 lazy_static! {
@@ -100,10 +100,13 @@ impl DiceRoll {
 	fn from_str(str: &str, rng: &mut impl Rng) -> Result<Self> {
 		let options = options::parse(str)?;
 
-		let dice_size_bound = options
+		let dice_size_bound = options.dice_sides.len();
+
+		let max_possible_roll = *options
 			.dice_sides
-			.checked_add(1)
-			.ok_or_else(|| anyhow!("Overflow rolling with sides {}", options.dice_sides))?;
+			.iter()
+			.max()
+			.ok_or_else(|| anyhow!("Must have at least one dice side"))?;
 
 		let mut rolls = vec![];
 		let mut dice_to_roll = options.number_of_dice;
@@ -111,15 +114,15 @@ impl DiceRoll {
 			// dice which hit max value which need exploded
 			let mut maxed: DiceInt = 0;
 			for _ in 0..dice_to_roll {
-				let mut current_roll = rng.gen_range(1, dice_size_bound);
+				let mut current_roll = options.dice_sides[rng.gen_range(0, dice_size_bound)];
 				let mut total = current_roll;
-				if current_roll == options.dice_sides && options.explode != None {
+				if current_roll == max_possible_roll && options.explode != None {
 					maxed = maxed.checked_add(1).ok_or_else(|| {
 						anyhow!("Overflow due to overflow tracking exploded dice count.")
 					})?;
 					if options.explode == Some(options::Explode::Compounding) {
-						while current_roll == options.dice_sides {
-							current_roll = rng.gen_range(1, dice_size_bound);
+						while current_roll == max_possible_roll {
+							current_roll = options.dice_sides[rng.gen_range(0, dice_size_bound)];
 							total = total.checked_add(current_roll).ok_or_else(|| {
 								anyhow!("Overflow due to overflow during compounded explode")
 							})?;

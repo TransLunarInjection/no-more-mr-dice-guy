@@ -19,6 +19,7 @@ struct Dice;
 
 1d20 roles a single d20.
 2d10 roles two d10s.
+4dF roles four MfD Fudge dice (values [-3, 0, 3])
 (3d3 * 2) + 1d10 roles 3d3s, doubles them, then adds a d10.
 10d20<15 roles 10d20 then filters only the rolls <15.
 10d20! uses exploding dice. A roll of max value (20 in this case) will cause another roll to be made.

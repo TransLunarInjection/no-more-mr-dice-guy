@@ -15,7 +15,7 @@ fn dice_roll_from_str() -> Result<()> {
 		DiceRoll {
 			options: Options {
 				number_of_dice: 1,
-				dice_sides: 1,
+				dice_sides: vec![1],
 				explode: None,
 				min: None,
 				max: None
@@ -48,8 +48,8 @@ fn roll_expression_simple() -> Result<()> {
 	assert_eq!(
 		roll_expressions("(5d11<5)", &mut test_rng())?,
 		(
-			"([~~8~~, ~~7~~, 2, ~~9~~, ~~6~~])".to_string(),
-			"(2)".to_string()
+			"([~~7~~, 2, ~~9~~, ~~7~~, 3])".to_string(),
+			"(5)".to_string()
 		)
 	);
 	Ok(())
@@ -60,8 +60,8 @@ fn roll_expression_exploded() -> Result<()> {
 	assert_eq!(
 		roll_expressions("11d3!", &mut test_rng())?,
 		(
-			"[3, 2, 3, 1, 3, 1, 3, 3, 2, 2, 1, 1, 1, 2, 2, 3, 2]".to_string(),
-			"35".to_string()
+			"[2, 1, 1, 3, 2, 1, 1, 2, 2, 1, 2, 3, 2]".to_string(),
+			"23".to_string()
 		)
 	);
 	Ok(())
@@ -72,8 +72,8 @@ fn roll_expression_compounded() -> Result<()> {
 	assert_eq!(
 		roll_expressions("11d3!!", &mut test_rng())?,
 		(
-			"[5, 4, 4, 8, 2, 1, 1, 1, 2, 2, 5]".to_string(),
-			"35".to_string()
+			"[2, 1, 1, 5, 1, 1, 2, 2, 1, 2, 5]".to_string(),
+			"23".to_string()
 		)
 	);
 	Ok(())
@@ -132,7 +132,7 @@ fn handle_overflow_in_sum() {
 	assert!(DiceRoll {
 		options: Options {
 			number_of_dice: 1,
-			dice_sides: 1,
+			dice_sides: vec![1],
 			explode: None,
 			min: None,
 			max: None
@@ -141,4 +141,13 @@ fn handle_overflow_in_sum() {
 	}
 	.val()
 	.is_err())
+}
+
+#[test]
+fn roll_fudge() -> Result<()> {
+	assert_eq!(
+		roll_expressions("4dF", &mut test_rng())?,
+		("[0, -3, -3, 3]".to_string(), "-3".to_string())
+	);
+	Ok(())
 }

@@ -10,15 +10,15 @@ pub enum Explode {
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct Options {
-	pub number_of_dice: DiceInt, // Xd
-	pub dice_sides: DiceInt,     // dX
+	pub number_of_dice: DiceInt,  // Xd
+	pub dice_sides: Vec<DiceInt>, // dX -> [1, 2, ..X]
 	pub explode: Option<Explode>,
 	pub min: Option<DiceInt>,
 	pub max: Option<DiceInt>,
 }
 
 pub fn parse(mut str: &str) -> Result<Options> {
-	let mut dice_sides = 20;
+	let mut dice_sides: Option<Vec<DiceInt>> = None;
 	let mut explode: Option<Explode> = None;
 	let mut min = None;
 	let mut max = None;
@@ -45,12 +45,27 @@ pub fn parse(mut str: &str) -> Result<Options> {
 			}
 			RollOption::Valued(valued) => {
 				idx += 1;
+
 				let value = parts
 					.get(idx)
-					.ok_or_else(|| anyhow!("Missing value for {:?}", option))?
-					.parse::<DiceInt>()?;
+					.ok_or_else(|| anyhow!("Missing value for {:?}", option))?;
+
+				if let (Valued::DiceSides, &"F") = (valued, value) {
+					dice_sides = Some(vec![-3, 0, 3]);
+					continue;
+				}
+
+				let value = value.parse::<DiceInt>()?;
 				match valued {
-					Valued::DiceSides => dice_sides = value,
+					Valued::DiceSides => {
+						ensure!(
+							value < super::MAX_DICE_SIDES,
+							"Must have < {} dice sides to roll. Tried: {}",
+							super::MAX_DICE_SIDES,
+							number_of_dice
+						);
+						dice_sides = Some((1..=value).collect())
+					}
 					Valued::LessThan => max = Some(value),
 					Valued::GreaterThan => min = Some(value),
 				}
@@ -58,9 +73,11 @@ pub fn parse(mut str: &str) -> Result<Options> {
 		}
 	}
 
+	let dice_sides = dice_sides.ok_or_else(|| anyhow!("Must set dice sides (eg d20)"))?;
+
 	ensure!(
-		dice_sides > 0,
-		"Must have >= 0 sides on dice to roll. Tried: {}",
+		!dice_sides.is_empty(),
+		"Must have >= 0 sides on dice to roll. Tried: {:?}",
 		dice_sides
 	);
 	ensure!(
@@ -75,8 +92,8 @@ pub fn parse(mut str: &str) -> Result<Options> {
 		number_of_dice
 	);
 	ensure!(
-		dice_sides < super::MAX_DICE_SIDES,
-		"Must have < {} dice to roll. Tried: {}",
+		dice_sides.len() < (super::MAX_DICE_SIDES as usize),
+		"Must have < {} dice sides to roll. Tried: {}",
 		super::MAX_DICE_SIDES,
 		number_of_dice
 	);
@@ -92,7 +109,7 @@ pub fn parse(mut str: &str) -> Result<Options> {
 
 lazy_static! {
 	static ref ROLL_OPTION_DELIMITER_REGEX: Regex =
-		Regex::new(r"(\d+|!{1, 2})").expect("Hardcoded regex");
+		Regex::new(r"(\d+|!{1, 2}|F)").expect("Hardcoded regex");
 }
 
 fn split_keeping_delimiters<'a>(r: &Regex, text: &'a str) -> Vec<&'a str> {
