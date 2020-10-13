@@ -108,7 +108,8 @@ async fn start() -> Result<()> {
 			.ignore_bots(false)
 			.ignore_webhooks(false)
 			.delimiters(vec![" "])
-	}));
+	}))
+	.await;
 
 	let mut client = Client::new(&token)
 		.intents(intents)

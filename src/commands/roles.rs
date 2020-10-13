@@ -8,8 +8,11 @@ use serenity::framework::StandardFramework;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub fn register(framework: StandardFramework) -> StandardFramework {
-	framework.group(&ROLES_GROUP)
+pub async fn register(framework: StandardFramework) -> StandardFramework {
+	framework
+		.group(&ROLES_GROUP)
+		.bucket("ROLES_BUCKET", |b| b.time_span(60).limit(6))
+		.await
 }
 
 pub struct Persistent {
@@ -125,6 +128,7 @@ struct Roles;
 #[checks(ManageRolesHigh)]
 #[description("Adds a toggleable role for the given emoji. Must use an emoji from this server.")]
 #[usage(":emoji: role name here")]
+#[bucket = "ROLES_BUCKET"]
 async fn add_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 	args.trimmed();
 	let emoji: EmojiIdentifier =
@@ -162,6 +166,7 @@ async fn add_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> Comman
 #[checks(ManageRolesHigh)]
 #[description("Removes a toggleable role for the given emoji. Must use an emoji from this server.")]
 #[usage(":emoji:")]
+#[bucket = "ROLES_BUCKET"]
 async fn remove_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 	args.trimmed();
 	let emoji: EmojiIdentifier =
@@ -190,6 +195,7 @@ async fn remove_role_toggle(ctx: &Context, msg: &Message, mut args: Args) -> Com
 #[checks(ManageRolesHigh)]
 #[description("Creates (or updates) the role toggle message")]
 #[usage("")]
+#[bucket = "ROLES_BUCKET"]
 async fn create_toggle_message(ctx: &Context, msg: &Message) -> CommandResult {
 	update_or_create_toggle_message(ctx, msg, true).await
 }

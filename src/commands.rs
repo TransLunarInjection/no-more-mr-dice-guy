@@ -117,7 +117,7 @@ async fn my_help(
 	Ok(())
 }
 
-pub fn register(p0: StandardFramework) -> StandardFramework {
+pub async fn register(p0: StandardFramework) -> StandardFramework {
 	roles::register(dice::register(
 		p0
 			// Set a function to be called prior to each command execution. This
@@ -145,6 +145,7 @@ pub fn register(p0: StandardFramework) -> StandardFramework {
 			.group(&GENERAL_GROUP)
 			.help(&MY_HELP),
 	))
+	.await
 }
 
 #[hook]
