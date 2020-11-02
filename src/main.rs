@@ -111,7 +111,7 @@ async fn start() -> Result<()> {
 	}))
 	.await;
 
-	let mut client = Client::new(&token)
+	let mut client = Client::builder(&token)
 		.intents(intents)
 		.event_handler(Handler)
 		.framework(framework)
