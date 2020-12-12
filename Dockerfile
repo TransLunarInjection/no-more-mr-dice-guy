@@ -10,7 +10,7 @@ RUN echo "#[cfg(test)] fn main() {println!(\"if you see this, the build broke\")
 
 RUN cargo build --release
 
-RUN rm -f target/release/deps/import-ynab* src/lib.rs
+RUN rm -f target/release/deps/no_more_mr_dice_guy* src/lib.rs
 
 COPY . .
 
@@ -28,7 +28,7 @@ WORKDIR /home/nmmdg/
 
 COPY --from=cargo-build /usr/src/nmmdg/target/release/no_more_mr_dice_guy nmmdg
 
-RUN chown nmmdg:nmmdg no_more_mr_dice_guy
+RUN chown nmmdg:nmmdg nmmdg
 
 USER nmmdg
 

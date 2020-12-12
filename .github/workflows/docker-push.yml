@@ -22,6 +22,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: TransLunarInjection/no-more-mr-dice-guy:latest
+          tags: ghcr.io/translunarinjection/no-more-mr-dice-guy:latest
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
