@@ -115,7 +115,8 @@ lazy_static! {
 fn split_keeping_delimiters<'a>(r: &Regex, text: &'a str) -> Vec<&'a str> {
 	let mut result = Vec::new();
 	let mut last = 0;
-	for (index, matched) in text.match_indices(r) {
+	for r#match in r.find_iter(text) {
+		let (index, matched) = (r#match.start(), r#match.as_str());
 		if last != index {
 			result.push(&text[last..index]);
 		}
