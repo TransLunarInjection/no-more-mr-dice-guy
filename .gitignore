@@ -1,7 +1,6 @@
 /target
 /sde
 /store
-Cargo.lock
 # Build #
 #########
 MANIFEST.MF
