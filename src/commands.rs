@@ -57,7 +57,7 @@ async fn invite(ctx: &Context, msg: &Message) -> CommandResult {
 	msg.reply(
 		&ctx,
 		format!(
-			"<https://discord.com/oauth2/authorize?client_id={}&scope=bot&permissions=0>",
+			"<https://discord.com/oauth2/authorize?client_id={}&scope=bot%20applications.commands&permissions=0>",
 			id
 		),
 	)
