@@ -114,7 +114,7 @@ impl DiceRoll {
 			// dice which hit max value which need exploded
 			let mut maxed: DiceInt = 0;
 			for _ in 0..dice_to_roll {
-				let mut current_roll = options.dice_sides[rng.gen_range(0, dice_size_bound)];
+				let mut current_roll = options.dice_sides[rng.gen_range(0..dice_size_bound)];
 				let mut total = current_roll;
 				if current_roll == max_possible_roll && options.explode != None {
 					maxed = maxed.checked_add(1).ok_or_else(|| {
@@ -122,7 +122,7 @@ impl DiceRoll {
 					})?;
 					if options.explode == Some(options::Explode::Compounding) {
 						while current_roll == max_possible_roll {
-							current_roll = options.dice_sides[rng.gen_range(0, dice_size_bound)];
+							current_roll = options.dice_sides[rng.gen_range(0..dice_size_bound)];
 							total = total.checked_add(current_roll).ok_or_else(|| {
 								anyhow!("Overflow due to overflow during compounded explode")
 							})?;

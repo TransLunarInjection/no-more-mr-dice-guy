@@ -28,7 +28,7 @@ fn dice_roll_from_str() -> Result<()> {
 
 fn test_rng() -> impl Rng {
 	use rand::SeedableRng;
-	rand::rngs::StdRng::from_seed([0; 32])
+	rand_chacha::ChaCha20Rng::from_seed([0; 32])
 }
 
 fn roll_expressions(msg: &str, rng: &mut impl Rng) -> Result<(String, String)> {
