@@ -151,3 +151,25 @@ fn roll_fudge() -> Result<()> {
 	);
 	Ok(())
 }
+
+#[test]
+fn roll_expression_without_spaces() -> Result<()> {
+	assert_eq!(
+		roll_expressions("(1d1*10)", &mut test_rng())?,
+		("([1]*10)".to_string(), "(1*10)".to_string())
+	);
+	assert_eq!(
+		roll_expressions("(1d1/10)", &mut test_rng())?,
+		("([1]/10)".to_string(), "(1/10)".to_string())
+	);
+	assert_eq!(
+		roll_expressions("(1d1+10)", &mut test_rng())?,
+		("([1]+10)".to_string(), "(1+10)".to_string())
+	);
+	assert_eq!(
+		roll_expressions("(1d1-10)", &mut test_rng())?,
+		("([1]-10)".to_string(), "(1-10)".to_string())
+	);
+
+	Ok(())
+}

@@ -16,7 +16,7 @@ const MAX_DICE_SIDES: DiceInt = 10_000;
 
 lazy_static! {
 	static ref ROLL_REGEX: Regex =
-		Regex::new(r"(^|[+\- (])(\d+d[^+\- )]+)($|[$+\- )])").expect("Hardcoded regex");
+		Regex::new(r"(^|[+\- (])(\d+d[^+\-\*/ )]+)($|[$+\-\*/ )])").expect("Hardcoded regex");
 }
 
 pub fn roll_expression(msg: &str) -> Result<String> {
