@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use anyhow::{anyhow, Result};
-use serenity::framework::standard::{macros::check, Args, CheckResult, CommandOptions};
+use serenity::framework::standard::{macros::check, Args, CommandOptions, Reason};
 use serenity::{model::prelude::*, prelude::*};
 
 #[check]
@@ -10,27 +10,34 @@ async fn manage_roles_high(
 	msg: &Message,
 	_: &mut Args,
 	_: &CommandOptions,
-) -> CheckResult {
+) -> Result<(), Reason> {
 	match check_manage_roles_high(ctx, msg).await {
-		Ok(val) => val,
+		Ok(None) => Ok(()),
+		Ok(Some(reason)) => Err(reason),
 		Err(err) => {
 			warn!(
 				"Manage roles check failed for {} due to {:?}",
 				&msg.author.name, err
 			);
-			CheckResult::new_user_and_log(&msg.author.name, &err.to_string())
+			Err(Reason::UserAndLog {
+				user: msg.author.name.clone(),
+				log: err.to_string(),
+			})
 		}
 	}
 }
 
 // Had to reimplement permissions checks as they don't work when the GUILD_MEMBERS intent isn't used
 // https://github.com/serenity-rs/serenity/issues/888
-async fn check_manage_roles_high(ctx: &Context, msg: &Message) -> Result<CheckResult> {
+async fn check_manage_roles_high(ctx: &Context, msg: &Message) -> Result<Option<Reason>> {
 	Ok(match msg.guild(&ctx).await {
-		None => CheckResult::new_user_and_log(msg.author.name.as_ref(), "Not in a guild"),
+		None => Some(Reason::UserAndLog {
+			user: msg.author.name.clone(),
+			log: "Not in a guild".to_string(),
+		}),
 		Some(guild) => {
 			if guild.owner_id == msg.author.id {
-				true.into()
+				None
 			} else {
 				let mut allowed = false;
 
@@ -73,7 +80,7 @@ async fn check_manage_roles_high(ctx: &Context, msg: &Message) -> Result<CheckRe
 						.get(x)
 						.ok_or_else(|| anyhow!("Couldn't find role {} in {}", x, guild.name))?;
 					if role.has_permission(Permissions::ADMINISTRATOR) {
-						return Ok(true.into());
+						return Ok(None);
 					}
 					if role.has_permission(Permissions::MANAGE_ROLES) {
 						match highest_manage_roles_permission {
@@ -98,9 +105,12 @@ async fn check_manage_roles_high(ctx: &Context, msg: &Message) -> Result<CheckRe
 				info!("Failed manage roles check");
 
 				if allowed {
-					true.into()
+					None
 				} else {
-					CheckResult::new_user_and_log(msg.author.name.as_ref(), "Manage roles permission on a role below manage roles permission of this bot")
+					Some(Reason::UserAndLog {
+						user: msg.author.name.clone(),
+						log: "Manage roles permission on a role below manage roles permission of this bot".to_string()
+					})
 				}
 			}
 		}
