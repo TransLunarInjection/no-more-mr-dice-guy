@@ -5,8 +5,8 @@ authors = ["Luna <git@nyx.nova.fail>"]
 edition = "2018"
 
 [dependencies]
-tokio = { version = "1.0.1", features = ["macros", "rt-multi-thread"] }
-rand = "0.8"
+tokio = { version = "1.0.2", features = ["macros", "rt-multi-thread"] }
+rand = "0.8.2"
 rand_chacha = "0.3"
 meval = "0.2"
 lazy_static = "1.4"
@@ -17,7 +17,7 @@ serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = "0.2"
 tracing-futures = "0.2"
-regex = "1.3"
+regex = "1.4"
 
 [dependencies.serenity]
 default-features = false
@@ -34,4 +34,4 @@ features = [
     "framework",
     "standard_framework",
 ]
-version = "0.10.1"
+version = "0.10.2"
