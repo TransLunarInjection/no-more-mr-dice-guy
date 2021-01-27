@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "1.0.2", features = ["macros", "rt-multi-thread"] }
-rand = "0.8.2"
+rand = "0.8.3"
 rand_chacha = "0.3"
 meval = "0.2"
 lazy_static = "1.4"
