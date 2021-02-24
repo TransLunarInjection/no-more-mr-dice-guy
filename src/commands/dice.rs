@@ -43,6 +43,8 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 d;roll_many 10 5d20
 
 Will roll 5d20 10 times and show the results individually.
+
+You can roll_many a maximum of 100 times. A further limit of at most three discord messages (6000 characters) of content is also enforced.
 "#)]
 #[usage("10 5d20")]
 async fn roll_many(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
@@ -50,20 +52,37 @@ async fn roll_many(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 
 	let count: u32 = args.parse().map_err(|x| anyhow!("Failed to parse roll count '{}' due to '{}'", args.current().unwrap_or(""), x))?;
 	args.advance();
+
+	if count > 100 {
+		return Err(anyhow!("Roll many is limited to a maximum of 100 rolls.").into());
+	}
 	let arg = args.rest();
 	let arg = if arg.is_empty() { "1d20" } else { arg };
 
 	let mut result = "".to_string();
+	let mut messages = vec![];
 
 	for i in 1 ..= count {
 		let next_line = &format!("{}: {}\n", i, crate::rolls::roll_expression(arg)?);
 		if result.len() + next_line.len() >= MESSAGE_CODE_LIMIT {
-			msg.channel_id.say(&ctx.http, result.trim()).await?;
-			result.clear();
+			messages.push(result);
+			result = "".to_string();
 		}
 		result += next_line;
 	}
-	msg.channel_id.say(&ctx.http, result.trim()).await?;
+
+	if !result.is_empty() {
+		messages.push(result);
+	}
+
+	if messages.len() > 3 {
+		return Err(anyhow!("Roll many is limited to displaying results which fit into three discord messages").into());
+	}
+
+	for message in messages {
+		msg.channel_id.say(&ctx.http, message.trim()).await?;
+	}
+
 	Ok(())
 }
 
