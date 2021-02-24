@@ -17,11 +17,11 @@ struct Dice;
 #[aliases(r)]
 #[description(r#"Rolls a dice.
 
-1d20 roles a single d20.
-2d10 roles two d10s.
-4dF roles four MfD Fudge dice (values [-3, 0, 3])
-(3d3 * 2) + 1d10 roles 3d3s, doubles them, then adds a d10.
-10d20<15 roles 10d20 then filters only the rolls <15.
+1d20 rolls a single d20.
+2d10 rolls two d10s.
+4dF rolls four MfD Fudge dice (values [-3, 0, 3])
+(3d3 * 2) + 1d10 rolls 3d3s, doubles them, then adds a d10.
+10d20<15 rolls 10d20 then filters only the rolls <15.
 10d20! uses exploding dice. A roll of max value (20 in this case) will cause another roll to be made.
 10d20!!>20 uses compounding exploding dice, and requires each roll to be >20. A roll of max value will cause another roll to be made and adds it to that dice, rather than treating it as a separate dice. It's possible for this roll to have a non-zero result.
 Combine these options as you wish. It should hopefully work.
