@@ -4,13 +4,14 @@ use regex::{Captures, Regex};
 use super::prelude::*;
 use serenity::framework::standard::{Args, CommandResult};
 use serenity::framework::StandardFramework;
+use serenity::constants::MESSAGE_CODE_LIMIT;
 
 pub fn register(framework: StandardFramework) -> StandardFramework {
 	framework.group(&DICE_GROUP)
 }
 
 #[group]
-#[commands(inline, roll)]
+#[commands(inline, roll, roll_many)]
 struct Dice;
 
 #[command]
@@ -32,6 +33,37 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 	let arg = if arg.is_empty() { "1d20" } else { arg };
 	let result = crate::rolls::roll_expression(arg)?;
 	msg.channel_id.say(&ctx.http, result).await?;
+	Ok(())
+}
+
+#[command]
+#[aliases(rm)]
+#[description(r#"Rolls a dice many times. Use like d;roll but with a multiple at the start.
+
+d;roll_many 10 5d20
+
+Will roll 5d20 10 times and show the results individually.
+"#)]
+#[usage("10 5d20")]
+async fn roll_many(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+	use anyhow::anyhow;
+
+	let count: u32 = args.parse().map_err(|x| anyhow!("Failed to parse roll count '{}' due to '{}'", args.current().unwrap_or(""), x))?;
+	args.advance();
+	let arg = args.rest();
+	let arg = if arg.is_empty() { "1d20" } else { arg };
+
+	let mut result = "".to_string();
+
+	for i in 1 ..= count {
+		let next_line = &format!("{}: {}\n", i, crate::rolls::roll_expression(arg)?);
+		if result.len() + next_line.len() >= MESSAGE_CODE_LIMIT {
+			msg.channel_id.say(&ctx.http, result.trim()).await?;
+			result.clear();
+		}
+		result += next_line;
+	}
+	msg.channel_id.say(&ctx.http, result.trim()).await?;
 	Ok(())
 }
 
