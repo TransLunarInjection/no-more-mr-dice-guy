@@ -621,7 +621,7 @@ dependencies = [
 
 [[package]]
 name = "no_more_mr_dice_guy"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "ctrlc",

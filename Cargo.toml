@@ -1,6 +1,6 @@
 [package]
 name = "no_more_mr_dice_guy"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Luna <git@nyx.nova.fail>"]
 edition = "2018"
 
