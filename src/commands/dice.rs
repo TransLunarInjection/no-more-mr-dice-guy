@@ -2,16 +2,16 @@ use anyhow::Result;
 use regex::{Captures, Regex};
 
 use super::prelude::*;
+use serenity::constants::MESSAGE_CODE_LIMIT;
 use serenity::framework::standard::{Args, CommandResult};
 use serenity::framework::StandardFramework;
-use serenity::constants::MESSAGE_CODE_LIMIT;
 
 pub fn register(framework: StandardFramework) -> StandardFramework {
 	framework.group(&DICE_GROUP)
 }
 
 #[group]
-#[commands(inline, roll, roll_many)]
+#[commands(inline, roll, roll_many, roll_bincount)]
 struct Dice;
 
 #[command]
@@ -50,7 +50,13 @@ You can roll_many a maximum of 100 times. A further limit of at most three disco
 async fn roll_many(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 	use anyhow::anyhow;
 
-	let count: u32 = args.parse().map_err(|x| anyhow!("Failed to parse roll count '{}' due to '{}'", args.current().unwrap_or(""), x))?;
+	let count: u32 = args.parse().map_err(|x| {
+		anyhow!(
+			"Failed to parse roll count '{}' due to '{}'",
+			args.current().unwrap_or(""),
+			x
+		)
+	})?;
 	args.advance();
 
 	if count > 100 {
@@ -62,7 +68,7 @@ async fn roll_many(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 	let mut result = "".to_string();
 	let mut messages = vec![];
 
-	for i in 1 ..= count {
+	for i in 1..=count {
 		let next_line = &format!("{}: {}\n", i, crate::rolls::roll_expression(arg)?);
 		if result.len() + next_line.len() >= MESSAGE_CODE_LIMIT {
 			messages.push(result);
@@ -76,7 +82,67 @@ async fn roll_many(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 	}
 
 	if messages.len() > 3 {
-		return Err(anyhow!("Roll many is limited to displaying results which fit into three discord messages").into());
+		return Err(anyhow!(
+			"Roll many is limited to displaying results which fit into three discord messages"
+		)
+		.into());
+	}
+
+	for message in messages {
+		msg.channel_id.say(&ctx.http, message.trim()).await?;
+	}
+
+	Ok(())
+}
+
+#[command]
+#[aliases(rb)]
+#[description(r#"Rolls a dice many times. Use like d;roll but with a multiple at the start.
+
+d;roll_many 10 5d20
+
+Will roll 5d20 10 times and show the result counts for each value.
+
+You can roll_many a maximum of 200 times. A further limit of at most three discord messages (6000 characters) of content is also enforced.
+"#)]
+#[usage("10 5d20")]
+async fn roll_bincount(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+	use crate::rolls::{roll_expression_value, DiceInt};
+	use anyhow::anyhow;
+	use itertools::Itertools;
+	use std::collections::HashMap;
+
+	let count: u32 = args.parse().map_err(|x| {
+		anyhow!(
+			"Failed to parse roll count '{}' due to '{}'",
+			args.current().unwrap_or(""),
+			x
+		)
+	})?;
+	args.advance();
+
+	if count > 200 {
+		return Err(anyhow!("Roll bincount is limited to a maximum of 100 rolls.").into());
+	}
+	let arg = args.rest();
+	let arg = if arg.is_empty() { "1d20" } else { arg };
+	let mut counts: HashMap<DiceInt, DiceInt> = HashMap::new();
+
+	for _ in 0..count {
+		let entry = counts.entry(roll_expression_value(arg)?).or_default();
+		*entry += 1;
+	}
+
+	let mut result = "".to_string();
+	let mut messages = vec![];
+
+	for (k, v) in counts.iter().sorted() {
+		let next_line = &format!("{}: {}\n", k, v);
+		if result.len() + next_line.len() >= MESSAGE_CODE_LIMIT {
+			messages.push(result);
+			result = "".to_string();
+		}
+		result += next_line;
 	}
 
 	for message in messages {

@@ -3,7 +3,7 @@ use rand::Rng;
 use regex::{Captures, Regex, Replacer};
 use std::borrow::Cow;
 
-type DiceInt = i32;
+pub type DiceInt = i32;
 
 mod options;
 #[cfg(test)]
@@ -17,6 +17,15 @@ const MAX_DICE_SIDES: DiceInt = 10_000;
 lazy_static! {
 	static ref ROLL_REGEX: Regex =
 		Regex::new(r"(^|[+\- (])(\d+d[^+\-\*/ )]+)($|[$+\-\*/ )])").expect("Hardcoded regex");
+}
+
+pub fn roll_expression_value(msg: &str) -> Result<DiceInt> {
+	use num_traits::cast::ToPrimitive;
+	let (_, _, vals) = roll_expressions(msg, &mut rand::thread_rng())?;
+	let evaled = meval::eval_str(&vals).map_err(|_e| anyhow!("Couldn't evaluate {}", vals))?;
+	Ok(evaled
+		.to_i32()
+		.ok_or_else(|| anyhow!("Result out of range"))?)
 }
 
 pub fn roll_expression(msg: &str) -> Result<String> {
