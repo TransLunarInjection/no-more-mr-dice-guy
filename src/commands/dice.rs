@@ -99,11 +99,11 @@ async fn roll_many(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 #[aliases(rb)]
 #[description(r#"Rolls a dice many times. Use like d;roll but with a multiple at the start.
 
-d;roll_many 10 5d20
+d;roll_bincount 10 5d20
 
 Will roll 5d20 10 times and show the result counts for each value.
 
-You can roll_many a maximum of 200 times. A further limit of at most three discord messages (6000 characters) of content is also enforced.
+You can roll_many a maximum of 500 times. A further limit of at most three discord messages (6000 characters) of content is also enforced.
 "#)]
 #[usage("10 5d20")]
 async fn roll_bincount(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
@@ -121,7 +121,7 @@ async fn roll_bincount(ctx: &Context, msg: &Message, mut args: Args) -> CommandR
 	})?;
 	args.advance();
 
-	if count > 200 {
+	if count > 500 {
 		return Err(anyhow!("Roll bincount is limited to a maximum of 100 rolls.").into());
 	}
 	let arg = args.rest();
