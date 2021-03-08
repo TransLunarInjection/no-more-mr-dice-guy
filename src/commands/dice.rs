@@ -145,6 +145,10 @@ async fn roll_bincount(ctx: &Context, msg: &Message, mut args: Args) -> CommandR
 		result += next_line;
 	}
 
+	if !result.is_empty() {
+		messages.push(result);
+	}
+
 	for message in messages {
 		msg.channel_id.say(&ctx.http, message.trim()).await?;
 	}
