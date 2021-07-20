@@ -5,7 +5,7 @@ authors = ["Luna <git@nyx.nova.fail>"]
 edition = "2018"
 
 [dependencies]
-tokio = { version = "1.2.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.8.2", features = ["macros", "rt-multi-thread"] }
 rand = "0.8.3"
 rand_chacha = "0.3"
 meval = "0.2"
